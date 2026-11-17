@@ -51,6 +51,24 @@
           <button id="scorePlus" aria-label="plus">+</button>
         </div>
       </div>
+      <div class="holeStats">
+        <div class="hs">
+          <span class="hsLbl">Putts</span>
+          <button id="puttMinus" class="sm" aria-label="fewer putts">−</button>
+          <b id="puttVal" class="hsVal">–</b>
+          <button id="puttPlus" class="sm" aria-label="more putts">+</button>
+        </div>
+        <div class="hs" id="fwBox">
+          <span class="hsLbl">Fairway</span>
+          <button class="yn" data-k="fw" data-v="1" aria-label="fairway hit">✓</button>
+          <button class="yn" data-k="fw" data-v="0" aria-label="fairway missed">✗</button>
+        </div>
+        <div class="hs" id="girBox">
+          <span class="hsLbl">GIR</span>
+          <button class="yn" data-k="gir" data-v="1" aria-label="green in regulation">✓</button>
+          <button class="yn" data-k="gir" data-v="0" aria-label="green missed">✗</button>
+        </div>
+      </div>
 
       <div class="mapWrap">
         <div id="map"></div>
@@ -106,14 +124,40 @@
       <div class="panel">
         <div class="cardHead">
           <div><b id="cardRoute"></b> · <span id="cardTee"></span></div>
-          <button id="newRoundBtn" class="chip danger">New round</button>
+          <div class="cardBtns">
+            <button id="newRoundBtn" class="chip danger">Clear</button>
+            <button id="saveRoundBtn" class="chip primary">Save round</button>
+          </div>
         </div>
         <div class="tableWrap"><table id="cardTable"></table></div>
-        <p class="hint">* stroke index estimated from the other combinations. Tap a hole to jump to it.</p>
+        <p class="hint">* stroke index estimated from the other combinations. Tap a hole to jump to it. P = putts, FW = fairway hit (par 4s and 5s), GIR = green in regulation (worked out from score and putts unless you set it).</p>
+      </div>
+      <div class="panel">
+        <div class="setupTitle">Round summary</div>
+        <div class="tableWrap"><table id="cardSummary" class="sumTable"></table></div>
+        <div id="cardDist" class="hint"></div>
       </div>
       <div class="panel">
         <div class="setupTitle">About the data</div>
         <p class="hint">Pars, yardages and stroke indexes come from published scorecards and may differ from the card at the club. Edit <code>data/course.js</code> in the repo to fix anything. Distances on the map are GPS estimates.</p>
+      </div>
+    </section>
+
+    <!-- SAVED ROUNDS VIEW -->
+    <section id="roundsView" class="hidden">
+      <div class="panel">
+        <div class="setupTitle">Your stats</div>
+        <div id="statTiles" class="statTiles"></div>
+        <p id="statsHint" class="hint"></p>
+      </div>
+      <div id="roundList"></div>
+      <div class="panel">
+        <div class="setupTitle">Backup</div>
+        <p class="hint">Rounds are saved on this phone only. Export a copy now and then, so clearing the browser (or a new phone) doesn't lose them.</p>
+        <div class="btnGrid">
+          <button id="exportRoundsBtn">Export rounds</button>
+          <label class="fileBtn">Import rounds<input type="file" id="importRounds" accept=".json,application/json"></label>
+        </div>
       </div>
     </section>
   </main>
@@ -123,6 +167,7 @@
     <div class="tabs">
       <button id="tabHole" class="tab active">Hole</button>
       <button id="tabCard" class="tab">Card</button>
+      <button id="tabRounds" class="tab">Rounds</button>
     </div>
     <div class="dots" id="dots"></div>
     <button id="nextBtn" class="navBtn">›</button>

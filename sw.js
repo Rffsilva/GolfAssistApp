@@ -1,5 +1,5 @@
 // Offline support: app shell is network-first (so new deploys show up), map tiles are cache-first.
-const VERSION = "bm-v2";
+const VERSION = "bm-v3";
 const SHELL = ["./", "index.html", "style.css", "app.js", "data/course.js", "data/geo.js",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png",
   "vendor/leaflet/leaflet.css", "vendor/leaflet/leaflet.js"];

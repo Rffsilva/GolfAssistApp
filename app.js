@@ -15,6 +15,9 @@
   let geo = Object.assign({}, window.GEO || {}, store.get("geo", {}));
   let scores = store.get("scores", {});      // { routeId: [18] }
   let myNotes = store.get("notes", {});      // { "east-1": "..." }
+  let extra = store.get("extra", {});        // { routeId: { putts: [18], fw: [18], gir: [18] } } — optional per-hole stats
+  let rounds = store.get("rounds", []);      // saved rounds, newest first
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
   // ---------- helpers ----------
   const route = () => C.routes.find((r) => r.id === S.route) || C.routes[0];
@@ -374,7 +377,7 @@
     }).join("");
     $("teeBtns").querySelectorAll(".teeBtn").forEach((b) => b.onclick = () => {
       S.tee = b.dataset.tee; save(); renderTeeBtns();
-      S.view === "card" ? renderCard() : renderHole(false);
+      S.view === "card" ? renderCard() : S.view === "rounds" ? renderRounds() : renderHole(false);
     });
   }
 
@@ -407,10 +410,34 @@
   }
 
   function roundScores() { return scores[S.route] || (scores[S.route] = Array(18).fill(null)); }
+  function roundExtra() {
+    const e = extra[S.route] || (extra[S.route] = {});
+    for (const k of ["putts", "fw", "gir"]) if (!Array.isArray(e[k])) e[k] = Array(18).fill(null);
+    return e;
+  }
+  // GIR: what you set by hand, otherwise worked out from score and putts
+  // (on the green in par − 2 strokes or fewer).
+  function girOf(i, par) {
+    const e = roundExtra(), s = roundScores()[i], p = e.putts[i];
+    if (e.gir[i] != null) return e.gir[i];
+    return s != null && p != null ? s - p <= par - 2 : null;
+  }
   function renderScore() {
     const s = roundScores()[S.hole], par = cur().par, el = $("scoreVal");
     el.textContent = s ?? "–";
     el.className = "scoreVal" + (s == null ? "" : s < par ? " under" : s > par ? " over" : "");
+    renderHoleStats();
+  }
+  function renderHoleStats() {
+    const e = roundExtra(), i = S.hole, par = cur().par;
+    $("puttVal").textContent = e.putts[i] ?? "–";
+    $("fwBox").classList.toggle("off", par < 4);
+    const fw = par < 4 ? null : e.fw[i], gir = girOf(i, par), girAuto = e.gir[i] == null && gir != null;
+    document.querySelectorAll(".yn").forEach((b) => {
+      const v = b.dataset.k === "fw" ? fw : gir, on = v != null && +v === +b.dataset.v;
+      b.classList.toggle("on", on);
+      b.classList.toggle("auto", on && b.dataset.k === "gir" && girAuto);
+    });
   }
   function bumpScore(d) {
     const arr = roundScores(), par = cur().par;
@@ -419,29 +446,185 @@
     arr[S.hole] = v < 1 ? null : v;
     store.set("scores", scores); renderScore();
   }
+  function bumpPutts(d) {
+    const e = roundExtra();
+    let v = e.putts[S.hole];
+    v = v == null ? (d > 0 ? 2 : 1) : v + d;
+    e.putts[S.hole] = v < 0 ? null : Math.min(v, 9);
+    store.set("extra", extra); renderHoleStats();
+  }
+  function setYN(k, v) {
+    const e = roundExtra(), i = S.hole;
+    e[k][i] = e[k][i] === v ? null : v; // tap again to clear (GIR goes back to automatic)
+    store.set("extra", extra); renderHoleStats();
+  }
+
+  // ---------- round stats ----------
+  const toParTxt = (d) => d === 0 ? "E" : (d > 0 ? "+" : "") + d;
+  const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  // Snapshot of the current round: everything needed to show it later, even if course data changes.
+  function currentHoles() {
+    const sc = roundScores(), e = roundExtra();
+    return Array.from({ length: 18 }, (_, i) => {
+      const h = holeInfo(i);
+      return { n: `${h.nine.name} ${h.k + 1}`, par: h.par, si: h.si, yd: yardsFor(h), score: sc[i],
+        putts: e.putts[i], fw: h.par > 3 ? e.fw[i] : null, gir: girOf(i, h.par) };
+    });
+  }
+  function summarize(hs) {
+    const o = { n: hs.length, played: 0, score: 0, par: 0, putts: 0, puttN: 0, fw: 0, fwN: 0, gir: 0, girN: 0, dist: [0, 0, 0, 0] };
+    for (const h of hs) {
+      if (h.score != null) {
+        o.played++; o.score += h.score; o.par += h.par;
+        const d = h.score - h.par; o.dist[d < 0 ? 0 : d === 0 ? 1 : d === 1 ? 2 : 3]++;
+      }
+      if (h.putts != null) { o.puttN++; o.putts += h.putts; }
+      if (h.par > 3 && h.fw != null) { o.fwN++; if (h.fw) o.fw++; }
+      if (h.gir != null) { o.girN++; if (h.gir) o.gir++; }
+    }
+    return o;
+  }
+  const frac = (a, n) => n ? `${a}/${n}` : "–";
+  function summaryHTML(hs, nineNames) {
+    const parts = [[`Out`, nineNames[0], hs.slice(0, 9)], [`In`, nineNames[1], hs.slice(9)], [`Total`, "", hs]];
+    let html = `<tr><th></th><th>Score</th><th>Putts</th><th>Fairways</th><th>GIR</th></tr>`;
+    for (const [lbl, nm, part] of parts) {
+      const s = summarize(part);
+      const score = s.played ? `${s.score} <span class="muted">(${toParTxt(s.score - s.par)})</span>` +
+        (s.played < s.n ? `<br><span class="muted">${s.played} of ${s.n} holes</span>` : "") : "–";
+      html += `<tr class="${lbl === "Total" ? "sum" : ""}"><td><b>${lbl}</b> <span class="muted">${esc(nm)}</span></td>` +
+        `<td>${score}</td><td>${s.puttN ? s.putts : "–"}</td><td>${frac(s.fw, s.fwN)}</td><td>${frac(s.gir, s.girN)}</td></tr>`;
+    }
+    return html;
+  }
+  function distText(hs) {
+    const s = summarize(hs);
+    if (!s.played) return "";
+    const [b, p, bo, w] = s.dist;
+    return `Birdie or better ${b} · Par ${p} · Bogey ${bo} · Double or worse ${w}`;
+  }
+  const routeNines = () => route().nines.map((n) => C.nines[n].name);
+
+  function saveRound() {
+    const hs = currentHoles();
+    if (!hs.some((h) => h.score != null)) { alert("Enter at least one score before saving the round."); return; }
+    if (!confirm("Save this round to your history and start a new card?")) return;
+    const r = route();
+    rounds.unshift({ id: Date.now().toString(36), date: new Date().toISOString(), route: r.id, routeLabel: r.label,
+      nines: routeNines(), tee: S.tee, holes: hs });
+    store.set("rounds", rounds);
+    clearRound();
+    showView("rounds");
+  }
+  function clearRound() {
+    scores[S.route] = Array(18).fill(null); store.set("scores", scores);
+    delete extra[S.route]; store.set("extra", extra);
+    renderCard();
+  }
+
+  function renderRounds() {
+    // overall stats across saved rounds
+    const full = rounds.filter((r) => summarize(r.holes).played === 18);
+    const all = summarize(rounds.flatMap((r) => r.holes));
+    const fullScores = full.map((r) => summarize(r.holes).score);
+    const avg = fullScores.length ? (fullScores.reduce((a, b) => a + b, 0) / fullScores.length).toFixed(1) : "–";
+    const best = fullScores.length ? Math.min(...fullScores) : "–";
+    const pct = (a, n) => n ? Math.round(100 * a / n) + "%" : "–";
+    const tiles = [["Rounds", rounds.length], ["Avg score", avg], ["Best", best],
+      ["Putts / 18", all.puttN ? (18 * all.putts / all.puttN).toFixed(1) : "–"], ["Fairways", pct(all.fw, all.fwN)], ["GIR", pct(all.gir, all.girN)]];
+    $("statTiles").innerHTML = tiles.map(([l, v]) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`).join("");
+    $("statsHint").textContent = rounds.length
+      ? "Average and best count full 18-hole rounds only. Putts, fairways and GIR count every hole where you entered them."
+      : "";
+
+    const list = $("roundList");
+    if (!rounds.length) {
+      list.innerHTML = `<div class="panel"><p class="empty">No saved rounds yet. Fill in the card and tap “Save round” at the end.</p></div>`;
+      return;
+    }
+    const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    list.innerHTML = rounds.map((r, idx) => {
+      const s = summarize(r.holes);
+      const line = [s.puttN ? `Putts ${s.putts}` : "", s.fwN ? `FW ${s.fw}/${s.fwN}` : "", s.girN ? `GIR ${s.gir}/${s.girN}` : ""].filter(Boolean).join(" · ");
+      return `<div class="panel round" data-idx="${idx}">
+        <div class="roundTop">
+          <div><div class="roundWhen">${esc(fmtDate(r.date))}</div>
+            <div class="roundSub">${esc(r.routeLabel)} · Tee ${esc(r.tee)}${s.played < 18 ? ` · ${s.played} holes` : ""}</div>
+            ${line ? `<div class="roundSub">${line}</div>` : ""}</div>
+          <div class="roundScore">${s.played ? s.score : "–"} <small>${s.played ? toParTxt(s.score - s.par) : ""}</small></div>
+        </div>
+        <div class="roundDetail hidden"></div>
+      </div>`;
+    }).join("");
+    list.querySelectorAll(".round").forEach((el) => el.onclick = (ev) => {
+      if (ev.target.closest(".roundDetail")) return;
+      const det = el.querySelector(".roundDetail");
+      if (det.classList.toggle("hidden")) return;
+      renderRoundDetail(det, rounds[+el.dataset.idx]);
+    });
+  }
+  function renderRoundDetail(box, r) {
+    let holes = `<tr><th>Hole</th><th></th><th>Par</th><th>Score</th><th>P</th><th>FW</th><th>GIR</th></tr>`;
+    r.holes.forEach((h, i) => {
+      const cls = h.score == null ? "" : h.score < h.par ? "under" : h.score > h.par ? "over" : "";
+      holes += `<tr><td><b>${i + 1}</b></td><td class="nineName">${esc(h.n)}</td><td>${h.par}</td><td class="${cls}">${h.score ?? ""}</td>` +
+        `<td>${h.putts ?? ""}</td>${ynCell(h.fw)}${ynCell(h.gir)}</tr>`;
+    });
+    box.innerHTML = `<div class="tableWrap"><table class="sumTable">${summaryHTML(r.holes, r.nines || ["", ""])}</table></div>
+      <p class="hint">${distText(r.holes)}</p>
+      <div class="tableWrap"><table>${holes}</table></div>
+      <div class="btnGrid"><span></span><button class="danger" data-del>Delete round</button></div>`;
+    box.querySelector("[data-del]").onclick = () => {
+      if (!confirm("Delete this saved round? This can't be undone.")) return;
+      rounds = rounds.filter((x) => x !== r); store.set("rounds", rounds); renderRounds();
+    };
+  }
+  const ynCell = (v) => v == null ? "<td></td>" : v ? `<td class="yes">✓</td>` : `<td class="no">✗</td>`;
+
+  function exportRounds() {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: "bm-rounds", v: 1, rounds }, null, 1)], { type: "application/json" }));
+    a.download = `rounds-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  async function importRounds(file) {
+    try {
+      const j = JSON.parse(await file.text());
+      const inc = (Array.isArray(j) ? j : j.rounds).filter((r) => r && r.id && Array.isArray(r.holes) && r.holes.length === 18);
+      const have = new Set(rounds.map((r) => r.id));
+      const add = inc.filter((r) => !have.has(r.id));
+      rounds = rounds.concat(add).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      store.set("rounds", rounds); renderRounds();
+      alert(`Imported ${add.length} round${add.length === 1 ? "" : "s"}` + (inc.length > add.length ? ` (${inc.length - add.length} already here).` : "."));
+    } catch { alert("Couldn't read that file."); }
+  }
 
   function renderCard() {
     const r = route();
     $("cardRoute").textContent = r.label;
     $("cardTee").textContent = "Tee " + S.tee + " · " + unitTxt();
-    const sc = roundScores();
-    let html = `<tr><th>Hole</th><th></th><th>${unitTxt()}</th><th>Par</th><th>SI</th><th>Score</th></tr>`;
+    const sc = roundScores(), hs = currentHoles();
+    let html = `<tr><th>Hole</th><th></th><th>${unitTxt()}</th><th>Par</th><th>SI</th><th>Score</th><th>P</th><th>FW</th><th>GIR</th></tr>`;
     let tot = { y: 0, p: 0, s: 0, sp: 0 };
+    const extraCells = (part) => { const s = summarize(part); return `<td>${s.puttN ? s.putts : ""}</td><td>${s.fwN ? s.fw + "/" + s.fwN : ""}</td><td>${s.girN ? s.gir + "/" + s.girN : ""}</td>`; };
     for (let n = 0; n < 2; n++) {
       let sub = { y: 0, p: 0, s: 0, sp: 0 };
       for (let k = 0; k < 9; k++) {
-        const h = holeInfo(n * 9 + k), y = yardsFor(h), s = sc[h.i];
+        const h = holeInfo(n * 9 + k), y = yardsFor(h), s = sc[h.i], x = hs[h.i];
         sub.y += y || 0; sub.p += h.par;
         if (s != null) { sub.s += s; sub.sp += h.par; }
         const cls = s == null ? "" : s < h.par ? "under" : s > h.par ? "over" : "";
-        html += `<tr class="hole" data-i="${h.i}"><td><b>${h.i + 1}</b></td><td class="nineName">${h.nine.name} ${k + 1}</td><td>${fmtLen(y)}</td><td>${h.par}</td><td>${h.si}${h.siEst ? "*" : ""}</td><td class="${cls}">${s ?? ""}</td></tr>`;
+        html += `<tr class="hole" data-i="${h.i}"><td><b>${h.i + 1}</b></td><td class="nineName">${h.nine.name} ${k + 1}</td><td>${fmtLen(y)}</td><td>${h.par}</td><td>${h.si}${h.siEst ? "*" : ""}</td><td class="${cls}">${s ?? ""}</td>` +
+          `<td>${x.putts ?? ""}</td>${ynCell(x.fw)}${ynCell(x.gir)}</tr>`;
       }
-      html += `<tr class="sum"><td>${n ? "In" : "Out"}</td><td></td><td>${fmtLen(sub.y)}</td><td>${sub.p}</td><td></td><td>${sub.sp ? sub.s : ""}</td></tr>`;
+      html += `<tr class="sum"><td>${n ? "In" : "Out"}</td><td></td><td>${fmtLen(sub.y)}</td><td>${sub.p}</td><td></td><td>${sub.sp ? sub.s : ""}</td>${extraCells(hs.slice(n * 9, n * 9 + 9))}</tr>`;
       for (const k in tot) tot[k] += sub[k];
     }
     const toPar = tot.sp ? tot.s - tot.sp : null;
-    html += `<tr class="sum"><td>Total</td><td></td><td>${fmtLen(tot.y)}</td><td>${tot.p}</td><td></td><td>${tot.sp ? tot.s + ` (${toPar > 0 ? "+" : ""}${toPar === 0 ? "E" : toPar})` : ""}</td></tr>`;
+    html += `<tr class="sum"><td>Total</td><td></td><td>${fmtLen(tot.y)}</td><td>${tot.p}</td><td></td><td>${tot.sp ? tot.s + ` (${toParTxt(toPar)})` : ""}</td>${extraCells(hs)}</tr>`;
     $("cardTable").innerHTML = html;
+    $("cardSummary").innerHTML = summaryHTML(hs, routeNines());
+    $("cardDist").textContent = distText(hs);
     $("cardTable").querySelectorAll("tr.hole").forEach((tr) => tr.onclick = () => { showView("hole"); goHole(+tr.dataset.i); });
   }
 
@@ -449,9 +632,11 @@
     S.view = v; save();
     $("holeView").classList.toggle("hidden", v !== "hole");
     $("cardView").classList.toggle("hidden", v !== "card");
+    $("roundsView").classList.toggle("hidden", v !== "rounds");
     $("tabHole").classList.toggle("active", v === "hole");
     $("tabCard").classList.toggle("active", v === "card");
-    if (v === "card") renderCard(); else setTimeout(() => { map.invalidateSize(); renderHole(true); }, 0);
+    $("tabRounds").classList.toggle("active", v === "rounds");
+    if (v === "card") renderCard(); else if (v === "rounds") renderRounds(); else setTimeout(() => { map.invalidateSize(); renderHole(true); }, 0);
   }
   function goHole(i) {
     S.hole = (i + 18) % 18; save();
@@ -460,14 +645,21 @@
   }
 
   // ---------- events ----------
-  $("routeSel").onchange = (e) => { S.route = e.target.value; save(); renderTeeBtns(); S.view === "card" ? renderCard() : renderHole(true); };
-  $("unitBtn").onclick = () => { S.unit = S.unit === "y" ? "m" : "y"; save(); $("unitBtn").textContent = unitTxt(); S.view === "card" ? renderCard() : renderHole(false); };
+  $("routeSel").onchange = (e) => { S.route = e.target.value; save(); renderTeeBtns(); S.view === "card" ? renderCard() : S.view === "rounds" ? renderRounds() : renderHole(true); };
+  $("unitBtn").onclick = () => { S.unit = S.unit === "y" ? "m" : "y"; save(); $("unitBtn").textContent = unitTxt(); S.view === "card" ? renderCard() : S.view === "rounds" ? renderRounds() : renderHole(false); };
   $("prevBtn").onclick = () => goHole(S.hole - 1);
   $("nextBtn").onclick = () => goHole(S.hole + 1);
   $("tabHole").onclick = () => showView("hole");
   $("tabCard").onclick = () => showView("card");
+  $("tabRounds").onclick = () => showView("rounds");
   $("scorePlus").onclick = () => bumpScore(1);
   $("scoreMinus").onclick = () => bumpScore(-1);
+  $("puttPlus").onclick = () => bumpPutts(1);
+  $("puttMinus").onclick = () => bumpPutts(-1);
+  document.querySelectorAll(".yn").forEach((b) => b.onclick = () => setYN(b.dataset.k, b.dataset.v === "1"));
+  $("saveRoundBtn").onclick = saveRound;
+  $("exportRoundsBtn").onclick = exportRounds;
+  $("importRounds").onchange = (e) => { e.target.files[0] && importRounds(e.target.files[0]); e.target.value = ""; };
   $("gpsBtn").onclick = () => toggleGPS();
   $("fitBtn").onclick = () => fitHole();
   $("setupBtn").onclick = toggleSetup;
@@ -477,7 +669,7 @@
   $("importFile").onchange = (e) => e.target.files[0] && importGeo(e.target.files[0]);
   document.querySelectorAll("[data-set]").forEach((b) => b.onclick = () => setPoint(b.dataset.set, b.dataset.src));
   $("myNotes").oninput = (e) => { myNotes[cur().key] = e.target.value; store.set("notes", myNotes); };
-  $("newRoundBtn").onclick = () => { if (confirm("Clear all scores for this combination?")) { scores[S.route] = Array(18).fill(null); store.set("scores", scores); renderCard(); } };
+  $("newRoundBtn").onclick = () => { if (confirm("Clear this card without saving it?")) clearRound(); };
 
   // swipe between holes on the header area
   let sx = null;
