@@ -12,6 +12,9 @@ Static site, no build step, hosted on GitHub Pages.
 - **Tap anywhere** on the map to measure: you (or the tee) → point → green. Drag the pin to adjust.
 - **Landmarks** (bunkers, water carries, creeks) per hole with distance from your tee and to the green.
 - Scorecard with out/in/total and score to par.
+- Optional per-hole **putts, fairway hit and green in regulation** (GIR is worked out from score and putts unless you set it).
+- Summary per nine and for the round, on the Card tab.
+- **Save round** stores the finished card in a history on the phone (Rounds tab) with averages, best score, putts per 18, fairway and GIR percentages. Export/import a JSON backup from that tab.
 - Works offline once loaded (installable: "Add to Home Screen").
 
 ## First-time setup of the map
