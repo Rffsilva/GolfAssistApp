@@ -14,8 +14,10 @@ Static site, no build step, hosted on GitHub Pages.
 - Scorecard with out/in/total and score to par.
 - Works offline once loaded (installable: "Add to Home Screen").
 
-## First-time setup of the map
-Hole positions aren't bundled yet. On each hole tap ⚙︎ and either:
+## Map setup
+Tee and green positions for East and North are bundled in `data/geo.js` (taken from OpenStreetMap hole lines), so GPS distances work out of the box. West is not mapped in OpenStreetMap yet and still needs setting up by hand.
+
+Positions can still be adjusted with Setup on any hole: tap ⚙︎ and either:
 1. tap an orange OpenStreetMap hole line (if the course is mapped there), or
 2. put the crosshair on the tee/green and tap the buttons, or use your GPS while standing there.
 
