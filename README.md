@@ -15,7 +15,7 @@ Static site, no build step, hosted on GitHub Pages.
 - Works offline once loaded (installable: "Add to Home Screen").
 
 ## Map setup
-Tee and green positions for East and North are bundled in `data/geo.js` (taken from OpenStreetMap hole lines), so GPS distances work out of the box. West is not mapped in OpenStreetMap yet and still needs setting up by hand.
+Tee and green positions for East and North are bundled in `data/geo.js` (taken from OpenStreetMap hole lines), so GPS distances work out of the box. West is not mapped in OpenStreetMap, so its positions are rough guesses placed by eye from satellite imagery (hole order and direction unconfirmed) — please re-set them on the course with Setup.
 
 Positions can still be adjusted with Setup on any hole: tap ⚙︎ and either:
 1. tap an orange OpenStreetMap hole line (if the course is mapped there), or
