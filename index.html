@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1712">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Black Mountain · Birdie Book</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">⛳</span>
+      <div>
+        <div class="title">Black Mountain</div>
+        <div class="sub">Birdie Book · Hua Hin</div>
+      </div>
+    </div>
+    <div class="controls">
+      <select id="routeSel" aria-label="Course combination"></select>
+      <button id="unitBtn" class="chip" aria-label="Units">yd</button>
+    </div>
+    <div class="teeBar">
+      <span class="teeBarLbl">Your tee</span>
+      <div id="teeBtns" class="teeBtns"></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HOLE VIEW -->
+    <section id="holeView">
+      <div class="holeHead">
+        <div class="holeNum"><span id="hNum">1</span></div>
+        <div class="holeMeta">
+          <div id="hNine" class="nine">East 1</div>
+          <div class="stats">
+            <span>Par <b id="hPar">4</b></span>
+            <span>SI <b id="hSi">7</b></span>
+            <span><b id="hYds">403</b> <span class="u">yd</span></span>
+          </div>
+        </div>
+        <div class="score">
+          <button id="scoreMinus" aria-label="minus">−</button>
+          <div id="scoreVal" class="scoreVal">–</div>
+          <button id="scorePlus" aria-label="plus">+</button>
+        </div>
+      </div>
+
+      <div class="mapWrap">
+        <div id="map"></div>
+        <div id="crosshair" class="crosshair hidden"></div>
+        <div class="distBox" id="distBox">
+          <div class="dRow"><span>Back</span><b id="dBack">–</b></div>
+          <div class="dRow big"><span>Middle</span><b id="dMid">–</b></div>
+          <div class="dRow"><span>Front</span><b id="dFront">–</b></div>
+          <div class="dSrc" id="dSrc">GPS off</div>
+        </div>
+        <div class="mapBtns">
+          <button id="gpsBtn" class="fab" title="GPS">📍</button>
+          <button id="fitBtn" class="fab" title="Fit hole">⤢</button>
+          <button id="setupBtn" class="fab" title="Setup hole">⚙︎</button>
+        </div>
+        <div id="mapMsg" class="mapMsg hidden"></div>
+      </div>
+
+      <div id="setupPanel" class="panel setup hidden">
+        <div class="setupTitle">Setup positions for this hole</div>
+        <p class="hint">Stand on (or aim at) the tee box you have selected at the top — other tees are worked out from the card yardages. Landmarks (bunkers, water carries, creeks) show distances from your tee and to the green; tap one in setup to delete it.</p>
+        <p class="hint">Move the map so the crosshair sits on the spot, then tap a button. Or tap an orange OSM hole line to use it.</p>
+        <div class="btnGrid">
+          <button data-set="tee" data-src="center">Tee = crosshair</button>
+          <button data-set="green" data-src="center">Green = crosshair</button>
+          <button data-set="tee" data-src="gps">Tee = my GPS</button>
+          <button data-set="pt" data-src="center">+ Landmark = crosshair</button>
+          <button data-set="pt" data-src="gps">+ Landmark = my GPS</button>
+          <button data-set="green" data-src="gps">Green = my GPS</button>
+          <button id="osmBtn">Reload OSM map data</button>
+          <button id="clearHoleBtn" class="danger">Clear this hole</button>
+        </div>
+        <div class="btnGrid">
+          <button id="exportBtn" class="primary">Export geo.js</button>
+          <label class="fileBtn">Import geo.js<input type="file" id="importFile" accept=".js,.json"></label>
+        </div>
+        <div id="geoStatus" class="hint"></div>
+      </div>
+
+      <div class="panel">
+        <div class="tees" id="teeRow"></div>
+        <div id="tips" class="tips"></div>
+        <table id="lmTable" class="lmTable"></table>
+        <div id="hNotes" class="notes"></div>
+        <img id="bookImg" class="bookImg hidden" alt="Birdie book page">
+        <label class="myNotesLbl" for="myNotes">My notes</label>
+        <textarea id="myNotes" rows="3" placeholder="Club choice, where to miss, pin notes…"></textarea>
+      </div>
+    </section>
+
+    <!-- SCORECARD VIEW -->
+    <section id="cardView" class="hidden">
+      <div class="panel">
+        <div class="cardHead">
+          <div><b id="cardRoute"></b> · <span id="cardTee"></span></div>
+          <button id="newRoundBtn" class="chip danger">New round</button>
+        </div>
+        <div class="tableWrap"><table id="cardTable"></table></div>
+        <p class="hint">* stroke index estimated from the other combinations. Tap a hole to jump to it.</p>
+      </div>
+      <div class="panel">
+        <div class="setupTitle">About the data</div>
+        <p class="hint">Pars, yardages and stroke indexes come from published scorecards and may differ from the card at the club. Edit <code>data/course.js</code> in the repo to fix anything. Distances on the map are GPS estimates.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom">
+    <button id="prevBtn" class="navBtn">‹</button>
+    <div class="tabs">
+      <button id="tabHole" class="tab active">Hole</button>
+      <button id="tabCard" class="tab">Card</button>
+    </div>
+    <div class="dots" id="dots"></div>
+    <button id="nextBtn" class="navBtn">›</button>
+  </nav>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="data/course.js"></script>
+  <script src="data/geo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
