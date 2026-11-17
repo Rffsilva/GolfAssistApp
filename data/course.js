@@ -2,6 +2,9 @@
 // Yardages in YARDS. Sources: offcourse.co (East/North, tee system 76…57),
 // golfpass.com (West, mapped onto tees 73…57). Verify against the card at the club
 // and edit freely — the app reads everything from this file.
+// West stroke indexes (12,16,10,4,18,6,2,14,8) and the North→West / West→East combination
+// indexes match the published club card as listed on thegrint.com and huahingolfcourse.com.
+// West 76 tee: only the nine total (3732 yd) is published, no per-hole yardages, so it stays null.
 // tips: d = danger / what to watch out for, a = where to aim. West tips are based on the
 // scorecard only (no published hole guide found) — overwrite them with your own.
 window.COURSE = {
@@ -111,7 +114,9 @@ window.COURSE = {
     }
   },
   // 18-hole combinations (first nine, second nine) with stroke index per nine.
-  // "est" marks indexes derived from the other combinations (not from an official card).
+  // "est" marks indexes that are estimated rather than taken from a published card.
+  // NOTE: East→North uses the older offcourse.co indexes; the newer club card lists East as
+  // 7,13,15,11,1,9,5,17,3 and North as 6,10,2,8,14,4,18,16,12 (see thegrint.com) — unconfirmed which applies.
   routes: [
     {
       id: "east-north", label: "East → North", nines: ["east", "north"],
@@ -119,11 +124,11 @@ window.COURSE = {
     },
     {
       id: "north-west", label: "North → West", nines: ["north", "west"],
-      si: [[6, 10, 2, 8, 14, 4, 18, 16, 12], [11, 15, 9, 3, 17, 5, 1, 13, 7]], est: [false, true]
+      si: [[6, 10, 2, 8, 14, 4, 18, 16, 12], [11, 15, 9, 3, 17, 5, 1, 13, 7]], est: [false, false]
     },
     {
       id: "west-east", label: "West → East", nines: ["west", "east"],
-      si: [[12, 16, 10, 4, 18, 6, 2, 14, 8], [8, 14, 18, 12, 4, 16, 2, 10, 6]], est: [false, true]
+      si: [[12, 16, 10, 4, 18, 6, 2, 14, 8], [7, 13, 15, 11, 1, 9, 5, 17, 3]], est: [false, false]
     }
   ]
 };

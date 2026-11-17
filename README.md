@@ -25,7 +25,7 @@ Then **Export geo.js** and replace `data/geo.js` in this repo so it works on eve
 ## Data
 `data/course.js` holds pars, yardages, stroke indexes, tips and notes. Yardages come from published scorecards
 (offcourse.co for East/North, golfpass.com for West — no 76 tee published for West) and may differ slightly
-from the card at the club. `*` next to a stroke index = estimated.
+from the card at the club. `*` next to a stroke index = estimated (none currently). West has no published 76-tee per-hole yardages, and West tips are scorecard-based (no hole guide is published).
 
 ## Deploy
 Pushing to `main` runs `.github/workflows/pages.yml`, which publishes the site to GitHub Pages
