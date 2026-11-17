@@ -144,7 +144,18 @@
   const dotIcon = (cls, txt) => L.divIcon({ className: "", html: `<div style="width:18px;height:18px;border-radius:50%;border:3px solid #fff;background:${cls};box-shadow:0 0 4px #000;display:grid;place-items:center;font-size:9px;font-weight:800;color:#000">${txt || ""}</div>`, iconSize: [18, 18], iconAnchor: [9, 9] });
 
   function cur() { return holeInfo(S.hole); }
-  function g() { return geo[cur().key] || {}; }
+  // Flag always sits in the middle of the green: if the green is mapped (OSM polygon),
+  // snap to its centre; otherwise use the point you set.
+  function greenMid(pt) {
+    const poly = greenPolyFor(pt);
+    if (!poly) return pt;
+    const v = poly.slice(0, -1), n = v.length || 1;
+    return [v.reduce((s, q) => s + q[0], 0) / n, v.reduce((s, q) => s + q[1], 0) / n];
+  }
+  function g() {
+    const p = geo[cur().key] || {};
+    return p.green ? Object.assign({}, p, { green: greenMid(p.green) }) : p;
+  }
   // Position of the tee you chose at the top. Only one tee spot is stored per hole
   // (plus which tee it was); other tees are shifted along the tee->green line by the
   // difference in card yardage.
@@ -176,7 +187,7 @@
     });
     renderLandmarks();
     if (p.green) {
-      L.marker(p.green, { icon: dotIcon("#ffd400", ""), interactive: false }).addTo(holeLayer);
+      L.marker(p.green, { icon: L.divIcon({ className: "", html: '<div class="flag">🚩</div>', iconSize: [26, 26], iconAnchor: [5, 24] }), interactive: false, zIndexOffset: 500 }).addTo(holeLayer);
       const gp = greenPolyFor(p.green);
       if (gp) L.polygon(gp, { color: "#ffd400", weight: 2, fill: false, interactive: false }).addTo(holeLayer);
     }

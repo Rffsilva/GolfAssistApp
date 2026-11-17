@@ -135,3 +135,5 @@ td.nineName { color: var(--muted); font-size: 11px; text-align: left; }
 
 .leaflet-control-attribution { background: rgba(0,0,0,.45) !important; color: #bbb !important; font-size: 9px !important; }
 .leaflet-control-attribution a { color: #ddd !important; }
+
+.flag { font-size: 24px; line-height: 26px; text-shadow: 0 0 3px #000; }
